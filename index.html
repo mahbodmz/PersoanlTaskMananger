@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>برنامه‌ریز و مدیریت کارهای روزانه</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Animate.css for subtle keyframe transitions -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <!-- Vazirmatn Font for Persian -->
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+
+    <!-- Firebase SDKs (Compat for simple script tag integration) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        body {
+            font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2d59 100%);
+            min-height: 100vh;
+            color: #f8fafc;
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        /* Custom Scrollbars */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.4);
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.7);
+        }
+
+        /* Checkbox styling */
+        .custom-checkbox {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border: 2px solid #3b82f6;
+            border-radius: 6px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+        }
+
+        .custom-checkbox:checked {
+            background-color: #3b82f6;
+            border-color: #3b82f6;
+        }
+
+        .custom-checkbox:checked::after {
+            content: '';
+            position: absolute;
+            left: 6px;
+            top: 2px;
+            width: 6px;
+            height: 12px;
+            border: solid white;
+            border-width: 0 2.5px 2.5px 0;
+            transform: rotate(45deg);
+        }
+
+        /* Task Item Animations */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-12px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .task-enter {
+            animation: slideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .task-exit {
+            transition: all 0.25s ease;
+            opacity: 0;
+            transform: scale(0.9) translateY(10px);
+            max-height: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            border: none !important;
+            overflow: hidden;
+        }
+
+        .tab-active {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            border-color: #60a5fa;
+            color: #ffffff;
+            box-shadow: 0 4px 20px -2px rgba(37, 99, 235, 0.5);
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen text-slate-100 antialiased selection:bg-blue-500 selection:text-white">
+
+    <!-- Background Ambient Glow -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute -top-40 -right-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
+        <div class="absolute top-1/2 -left-40 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-40 right-1/3 w-96 h-96 bg-sky-500/15 rounded-full blur-3xl"></div>
+    </div>
+
+    <!-- Main Outer Container with 24px fixed mobile margins (px-6 = 24px) -->
+    <div class="relative z-10 flex-grow flex flex-col max-w-5xl w-full mx-auto px-6 sm:px-8 py-6 lg:py-8">
+
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+            <div class="flex items-center gap-3 text-center sm:text-right">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <i data-lucide="calendar-check-2" class="w-7 h-7 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-200 via-white to-blue-300">
+                        برنامه‌ریز هفتگی
+                    </h1>
+                    <p class="text-xs sm:text-sm text-slate-400 mt-0.5" id="current-today-subtitle">
+                        در حال دریافت تاریخ امروز...
+                    </p>
+                </div>
+            </div>
+
+            <!-- Global Action Stats & Live Sync Badge -->
+            <div class="flex flex-wrap items-center justify-center gap-3">
+                <!-- Sync Badge -->
+                <div id="sync-status" class="glass-panel px-3 py-2 rounded-xl flex items-center gap-2 border border-slate-700/60 text-xs">
+                    <span id="sync-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="sync-text" class="text-slate-300 font-medium">در حال اتصال...</span>
+                </div>
+
+                <!-- Stats Badge -->
+                <div class="glass-panel px-4 py-2 rounded-xl flex items-center gap-3 border border-slate-700/60 text-xs sm:text-sm">
+                    <div class="flex items-center gap-1.5 text-blue-400 font-semibold">
+                        <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                        <span id="stats-completed">۰</span>
+                    </div>
+                    <span class="text-slate-600">|</span>
+                    <div class="flex items-center gap-1.5 text-slate-300 font-medium">
+                        <span>کل کارها:</span>
+                        <span id="stats-total">۰</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tabs Navigation -->
+        <section class="mb-6">
+            <div class="flex items-center justify-between mb-3 px-1">
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-blue-400"></i>
+                    برنامه‌ریزی ۷ روز آینده
+                </span>
+                <span class="text-xs text-slate-400" id="active-tab-range">همگام‌سازی لحظه‌ای</span>
+            </div>
+
+            <div class="glass-panel p-2 rounded-2xl border border-slate-700/60 shadow-xl">
+                <div id="tabs-container" class="flex gap-2 overflow-x-auto no-scrollbar py-1 px-1">
+                    <!-- Dynamic 7 Jalali Days generated by JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Active Day Content Area -->
+        <main class="flex-grow flex flex-col glass-panel rounded-3xl p-5 sm:p-7 border border-slate-700/80 shadow-2xl relative overflow-hidden mb-6">
+            
+            <!-- Day Header & Progress Bar -->
+            <div class="flex flex-col gap-4 pb-6 border-b border-slate-700/60">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 id="active-day-title" class="text-xl sm:text-2xl font-bold text-white">
+                                ...
+                            </h2>
+                            <span id="today-badge" class="hidden px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                امروز
+                            </span>
+                        </div>
+                        <p id="active-day-date" class="text-xs sm:text-sm text-slate-400 mt-1">
+                            ...
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button id="btn-clear-completed" class="hidden text-xs text-slate-400 hover:text-rose-400 bg-slate-800/80 hover:bg-slate-800 px-3 py-2 rounded-xl transition border border-slate-700 items-center gap-1.5">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            پاکسازی انجام‌شده‌ها
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Daily Progress Bar -->
+                <div class="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden border border-slate-700/50 mt-1">
+                    <div id="daily-progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-500 h-full w-0 transition-all duration-500"></div>
+                </div>
+            </div>
+
+            <!-- Add Task Form -->
+            <form id="add-task-form" class="mt-6 mb-6">
+                <div class="relative flex items-center">
+                    <input 
+                        type="text" 
+                        id="task-input" 
+                        placeholder="افزودن کار جدید برای این روز... (Enter را بزنید)"
+                        class="w-full bg-slate-900/80 border border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-slate-100 placeholder-slate-500 rounded-2xl py-3.5 pr-4 pl-28 text-sm sm:text-base outline-none transition duration-200"
+                        autocomplete="off"
+                        required
+                    />
+                    <button 
+                        type="submit" 
+                        class="absolute left-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-medium flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition duration-200 active:scale-95"
+                    >
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        افزودن
+                    </button>
+                </div>
+            </form>
+
+            <!-- Tasks Container -->
+            <div id="tasks-wrapper" class="flex-grow flex flex-col min-h-[220px]">
+                <!-- Empty State -->
+                <div id="empty-state" class="hidden flex-grow flex flex-col items-center justify-center text-center p-8">
+                    <div class="w-20 h-20 rounded-3xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center mb-4 text-blue-400 shadow-inner">
+                        <i data-lucide="list-todo" class="w-10 h-10 stroke-[1.5]"></i>
+                    </div>
+                    <h3 class="text-base font-semibold text-slate-300">هیچ کاری برای این روز ثبت نشده است</h3>
+                    <p class="text-xs text-slate-500 mt-1 max-w-xs">
+                        برنامه‌ریزی روزانه به شما کمک می‌کند کارهای خود را منظم‌تر و سریع‌تر پیش ببرید.
+                    </p>
+                </div>
+
+                <!-- Task List -->
+                <ul id="task-list" class="space-y-3 custom-scrollbar overflow-y-auto max-h-[420px] pr-1">
+                    <!-- Tasks rendered here -->
+                </ul>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="text-center text-xs text-slate-500 py-2">
+            برنامه‌ریز کارها • متصل به پایگاه داده آنلاین Realtime
+        </footer>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-6 left-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none glass-panel border border-blue-500/30 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-xl shadow-black/40 text-sm">
+        <div id="toast-icon" class="text-blue-400">
+            <i data-lucide="info" class="w-5 h-5"></i>
+        </div>
+        <span id="toast-message" class="text-slate-200 font-medium"></span>
+    </div>
+
+    <script>
+        // 1. Firebase Initialization with your exact Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyAxRndSHS5OZye95zr_qZ1YFYLqvrm0I58",
+            authDomain: "farsi-task-manager-6c82e.firebaseapp.com",
+            projectId: "farsi-task-manager-6c82e",
+            storageBucket: "farsi-task-manager-6c82e.firebasestorage.app",
+            messagingSenderId: "640034818643",
+            appId: "1:640034818643:web:cf9388d0faf938ac3f54a6",
+            measurementId: "G-08TWBMQ0PX"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const tasksRef = db.ref('farsi_tasks');
+
+        // Persian Calendar Constants & Utilities
+        const PERSIAN_DAYS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'];
+
+        function toPersianDigits(str) {
+            if (str === null || str === undefined) return '';
+            return str.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+        }
+
+        function getJalaliDateInfo(date) {
+            try {
+                const formatter = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+
+                const parts = formatter.formatToParts(date);
+                let dayName = '', day = '', monthName = '', year = '';
+
+                parts.forEach(p => {
+                    if (p.type === 'weekday') dayName = p.value;
+                    if (p.type === 'day') day = p.value;
+                    if (p.type === 'month') monthName = p.value;
+                    if (p.type === 'year') year = p.value;
+                });
+
+                if (!dayName) dayName = PERSIAN_DAYS[date.getDay()];
+
+                // Simple YYYY-MM-DD standard key
+                const yearNum = date.getFullYear();
+                const monthNum = String(date.getMonth() + 1).padStart(2, '0');
+                const dayNum = String(date.getDate()).padStart(2, '0');
+                const isoKey = `${yearNum}-${monthNum}-${dayNum}`;
+
+                return {
+                    dayName: dayName,
+                    day: day,
+                    monthName: monthName,
+                    year: year,
+                    fullFormatted: `${dayName} ${day} ${monthName}`,
+                    isoKey: isoKey
+                };
+            } catch (e) {
+                const isoKey = date.toISOString().split('T')[0];
+                return {
+                    dayName: PERSIAN_DAYS[date.getDay()],
+                    day: toPersianDigits(date.getDate()),
+                    monthName: 'ماه',
+                    year: toPersianDigits(date.getFullYear()),
+                    fullFormatted: `${PERSIAN_DAYS[date.getDay()]} ${toPersianDigits(date.getDate())}`,
+                    isoKey: isoKey
+                };
+            }
+        }
+
+        // App State Variables
+        let daysList = [];
+        let activeTabIndex = 0;
+        let tasksData = {}; // Structure: { isoKey: { taskId: { title, completed, createdAt } } }
+
+        // DOM Elements
+        const tabsContainer = document.getElementById('tabs-container');
+        const activeDayTitle = document.getElementById('active-day-title');
+        const activeDayDate = document.getElementById('active-day-date');
+        const todayBadge = document.getElementById('today-badge');
+        const taskInput = document.getElementById('task-input');
+        const addTaskForm = document.getElementById('add-task-form');
+        const taskList = document.getElementById('task-list');
+        const emptyState = document.getElementById('empty-state');
+        const statsCompleted = document.getElementById('stats-completed');
+        const statsTotal = document.getElementById('stats-total');
+        const currentTodaySubtitle = document.getElementById('current-today-subtitle');
+        const btnClearCompleted = document.getElementById('btn-clear-completed');
+        const dailyProgressBar = document.getElementById('daily-progress-bar');
+        const syncDot = document.getElementById('sync-dot');
+        const syncText = document.getElementById('sync-text');
+
+        function initApp() {
+            generate7Days();
+
+            if (daysList.length > 0) {
+                const today = daysList[0];
+                currentTodaySubtitle.innerText = `امروز ${today.dayName}، ${today.day} ${today.monthName} ${today.year}`;
+            }
+
+            // Connection Status Listener
+            const connectedRef = db.ref('.info/connected');
+            connectedRef.on('value', (snap) => {
+                if (snap.val() === true) {
+                    syncDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400";
+                    syncText.innerText = "همگام‌سازی آنلاین";
+                    syncText.className = "text-emerald-300 font-medium";
+                } else {
+                    syncDot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse";
+                    syncText.innerText = "در حال اتصال...";
+                    syncText.className = "text-amber-300 font-medium";
+                }
+            });
+
+            // Listen for Realtime Changes from Firebase across all devices
+            tasksRef.on('value', (snapshot) => {
+                const val = snapshot.val();
+                tasksData = val || {};
+                renderTabs();
+                renderTasksForActiveDay();
+            }, (error) => {
+                console.error("Database connection error:", error);
+                showToast("خطا در برقراری ارتباط با پایگاه داده");
+            });
+
+            // Setup Form Handlers
+            addTaskForm.addEventListener('submit', handleAddTask);
+            btnClearCompleted.addEventListener('click', handleClearCompleted);
+
+            // Select Today by default
+            selectTab(0);
+            lucide.createIcons();
+        }
+
+        function generate7Days() {
+            daysList = [];
+            const now = new Date();
+
+            for (let i = 0; i < 7; i++) {
+                const dayDate = new Date(now);
+                dayDate.setDate(now.getDate() + i);
+                const info = getJalaliDateInfo(dayDate);
+                daysList.push({
+                    index: i,
+                    isToday: i === 0,
+                    ...info
+                });
+            }
+        }
+
+        function renderTabs() {
+            tabsContainer.innerHTML = '';
+
+            daysList.forEach((day, index) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `flex-1 min-w-[110px] sm:min-w-[125px] py-3 px-3 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 cursor-pointer outline-none ${
+                    index === activeTabIndex 
+                        ? 'tab-active' 
+                        : 'bg-slate-800/40 hover:bg-slate-800/80 border-slate-700/60 text-slate-300'
+                }`;
+
+                // Calculate active tasks count
+                const dayTasksObj = tasksData[day.isoKey] || {};
+                const dayTasks = Object.values(dayTasksObj);
+                const pendingCount = dayTasks.filter(t => !t.completed).length;
+
+                btn.innerHTML = `
+                    <span class="text-xs font-semibold ${index === activeTabIndex ? 'text-blue-100' : 'text-slate-400'} flex items-center gap-1">
+                        ${day.isToday ? '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>' : ''}
+                        ${day.dayName}
+                    </span>
+                    <span class="text-sm font-bold mt-1 tracking-wide">
+                        ${day.day} ${day.monthName}
+                    </span>
+                    ${pendingCount > 0 ? `
+                        <span class="mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${index === activeTabIndex ? 'bg-white/20 text-white' : 'bg-blue-500/20 text-blue-300'}">
+                            ${toPersianDigits(pendingCount)} کار
+                        </span>
+                    ` : `
+                        <span class="mt-1.5 text-[10px] opacity-0">.</span>
+                    `}
+                `;
+
+                btn.addEventListener('click', () => selectTab(index));
+                tabsContainer.appendChild(btn);
+            });
+        }
+
+        function selectTab(index) {
+            activeTabIndex = index;
+            const day = daysList[index];
+
+            if (!day) return;
+
+            renderTabs();
+
+            activeDayTitle.innerText = day.dayName;
+            activeDayDate.innerText = `${day.day} ${day.monthName} ${day.year}`;
+
+            if (day.isToday) {
+                todayBadge.classList.remove('hidden');
+            } else {
+                todayBadge.classList.add('hidden');
+            }
+
+            renderTasksForActiveDay();
+        }
+
+        function renderTasksForActiveDay() {
+            const currentDay = daysList[activeTabIndex];
+            if (!currentDay) return;
+
+            const dayTasksObj = tasksData[currentDay.isoKey] || {};
+            const tasksArray = Object.entries(dayTasksObj).map(([id, task]) => ({ id, ...task }));
+
+            // Sort by creation time newest first
+            tasksArray.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            taskList.innerHTML = '';
+
+            if (tasksArray.length === 0) {
+                emptyState.classList.remove('hidden');
+                btnClearCompleted.classList.add('hidden');
+                dailyProgressBar.style.width = '0%';
+            } else {
+                emptyState.classList.add('hidden');
+                
+                const completedCount = tasksArray.filter(t => t.completed).length;
+                const progressPercent = Math.round((completedCount / tasksArray.length) * 100);
+                dailyProgressBar.style.width = `${progressPercent}%`;
+
+                if (completedCount > 0) {
+                    btnClearCompleted.classList.remove('hidden');
+                } else {
+                    btnClearCompleted.classList.add('hidden');
+                }
+
+                tasksArray.forEach(task => {
+                    const li = createTaskElement(task, currentDay.isoKey);
+                    taskList.appendChild(li);
+                });
+            }
+
+            updateGlobalStats();
+            lucide.createIcons();
+        }
+
+        function createTaskElement(task, isoKey) {
+            const li = document.createElement('li');
+            li.className = `task-enter flex items-center justify-between p-3.5 sm:p-4 rounded-2xl glass-card border transition-all duration-200 group ${
+                task.completed ? 'opacity-60 border-slate-800 bg-slate-900/30' : 'border-slate-700/60 hover:border-blue-500/40 hover:bg-slate-800/50'
+            }`;
+
+            li.innerHTML = `
+                <div class="flex items-center gap-3 flex-grow min-w-0 pr-1">
+                    <input 
+                        type="checkbox" 
+                        class="custom-checkbox flex-shrink-0" 
+                        ${task.completed ? 'checked' : ''}
+                    />
+                    <span class="text-sm sm:text-base break-words font-medium text-slate-100 transition-all ${
+                        task.completed ? 'line-through text-slate-400' : ''
+                    }">
+                        ${escapeHtml(task.title)}
+                    </span>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                        type="button" 
+                        class="btn-delete text-slate-400 hover:text-rose-400 p-2 rounded-xl hover:bg-rose-500/10 transition"
+                        title="حذف کار"
+                    >
+                        <i data-lucide="trash" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `;
+
+            // Checkbox event -> push update directly to Firebase
+            const checkbox = li.querySelector('.custom-checkbox');
+            checkbox.addEventListener('change', () => {
+                tasksRef.child(isoKey).child(task.id).update({
+                    completed: checkbox.checked
+                });
+            });
+
+            // Delete event
+            const btnDelete = li.querySelector('.btn-delete');
+            btnDelete.addEventListener('click', () => {
+                li.classList.add('task-exit');
+                setTimeout(() => {
+                    tasksRef.child(isoKey).child(task.id).remove();
+                    showToast('کار حذف شد');
+                }, 250);
+            });
+
+            return li;
+        }
+
+        function handleAddTask(e) {
+            e.preventDefault();
+            const text = taskInput.value.trim();
+            if (!text) return;
+
+            const currentDay = daysList[activeTabIndex];
+            if (!currentDay) return;
+
+            // Push new task item to Firebase
+            const newTaskRef = tasksRef.child(currentDay.isoKey).push();
+            newTaskRef.set({
+                title: text,
+                completed: false,
+                createdAt: new Date().toISOString()
+            }).then(() => {
+                taskInput.value = '';
+                showToast('کار جدید اضافه شد');
+            }).catch(err => {
+                console.error(err);
+                showToast('خطا در ذخیره‌سازی کار');
+            });
+        }
+
+        function handleClearCompleted() {
+            const currentDay = daysList[activeTabIndex];
+            if (!currentDay || !tasksData[currentDay.isoKey]) return;
+
+            const dayObj = tasksData[currentDay.isoKey];
+            Object.entries(dayObj).forEach(([id, task]) => {
+                if (task.completed) {
+                    tasksRef.child(currentDay.isoKey).child(id).remove();
+                }
+            });
+            showToast('کارهای انجام‌شده پاکسازی شدند');
+        }
+
+        function updateGlobalStats() {
+            let total = 0;
+            let completed = 0;
+
+            Object.values(tasksData).forEach(dayObj => {
+                if (dayObj && typeof dayObj === 'object') {
+                    const list = Object.values(dayObj);
+                    total += list.length;
+                    completed += list.filter(t => t.completed).length;
+                }
+            });
+
+            statsTotal.innerText = toPersianDigits(total);
+            statsCompleted.innerText = toPersianDigits(completed);
+        }
+
+        let toastTimeout;
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+
+            toastMessage.innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
